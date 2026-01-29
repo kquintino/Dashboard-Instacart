@@ -2,12 +2,15 @@
 
 import pandas as pd
 import matplotlib.pyplot as plt
+from pathlib import Path
 
-df_orders = pd.read_csv("/datasets/instacart_orders.csv", sep=";")
-df_products = pd.read_csv("/datasets/products.csv", sep=";")
-df_aisles = pd.read_csv("/datasets/aisles.csv", sep=";")
-df_departments = pd.read_csv("/datasets/departments.csv", sep=";")
-df_order_products = pd.read_csv("/datasets/order_products.csv", sep=";")
+BASE_DIR = Path(__file__).resolve().parent
+
+df_orders = pd.read_csv(BASE_DIR / "orders.csv", sep=";")
+df_products = pd.read_csv(BASE_DIR / "products.csv", sep=";")
+df_aisles = pd.read_csv(BASE_DIR / "aisles.csv", sep=";")
+df_departments = pd.read_csv(BASE_DIR / "departments.csv", sep=";")
+df_order_products = pd.read_csv(BASE_DIR / "order_products.csv", sep=";")
 
 print(df_orders[df_orders.duplicated()])
 print(df_orders[(df_orders["order_dow"] == 3) & (df_orders["order_hour_of_day"] == 2)])
@@ -20,7 +23,7 @@ print(df_orders[df_orders["order_id"].duplicated()])
 print(df_products[df_products.duplicated()])
 print(df_products[df_products["product_id"].duplicated()])
 
-df_products["product_name"].str.lower()
+df_products["product_name"] = df_products["product_name"].str.lower()
 print(df_products[df_products["product_name"].duplicated()].sample(10))
 print(df_products.dropna(subset=["product_name"])["product_name"].duplicated().sum())
 
@@ -264,7 +267,7 @@ most_popular_itens.plot(
 
 # Para cada produto, qual parcela de todos os pedidos dele são repetidos?
 # Realiza a junção dos dataframes 'order_products' e 'products' com base em uma chave comum
-df_merge = order_products.merge(products)
+df_merge = df_order_products.merge(df_products, on="product_id")
 
 # Calcula a taxa de reordenação (média de 'reordered') para cada produto, agrupando pelo 'product_id' e 'product_name'
 reorder_rate = df_merge.groupby(["product_id", "product_name"])["reordered"].mean()
@@ -273,25 +276,15 @@ reorder_rate = df_merge.groupby(["product_id", "product_name"])["reordered"].mea
 reorder_rate
 
 # Para cada cliente, qual proporção de todos os seus pedidos são repetidos?
-# Contar o número total de pedidos para cada cliente
-total_pedidos_por_cliente = df_instacart_orders["user_id"].value_counts()
-
-# Contar o número de pedidos repetidos para cada cliente
-pedidos_repetidos_por_cliente = df_order_products[df_order_products["reordered"] == 1][
-    "order_id"
-].value_counts()
-
-# Calcular a proporção de pedidos repetidos para cada cliente
+# Considera como "repetido" qualquer pedido com order_number > 1.
 proporcao_pedidos_repetidos_cliente = (
-    pedidos_repetidos_por_cliente / total_pedidos_por_cliente
+    df_orders.groupby("user_id")["order_number"].apply(lambda s: (s > 1).mean())
 )
 
 # Criar uma tabela com as colunas de ID do cliente e a proporção de pedidos repetidos
-tabela_proporcao_repetidos_cliente = pd.DataFrame(
-    {
-        "user_id": proporcao_pedidos_repetidos_cliente.index,
-        "proporcao_repetidos": proporcao_pedidos_repetidos_cliente.values,
-    }
+tabela_proporcao_repetidos_cliente = (
+    proporcao_pedidos_repetidos_cliente.reset_index()
+    .rename(columns={"order_number": "proporcao_repetidos"})
 )
 
 # Exibir a tabela
