@@ -1,4 +1,4 @@
 pathlib
 pandas
-plotly.express
+plotly
 streamlit
