@@ -13,14 +13,64 @@ BASE_DIR = Path(__file__).resolve().parent
 
 @st.cache_data
 def load_data():
-    df_orders = pd.read_csv(BASE_DIR / "orders.csv", sep=";")
-    df_products = pd.read_csv(BASE_DIR / "products.csv", sep=";")
-    df_departments = pd.read_csv(BASE_DIR / "departments.csv", sep=";")
-    df_order_products = pd.read_csv(BASE_DIR / "order_products.csv", sep=";")
-    return df_orders, df_products, df_departments, df_order_products
+    df_orders = pd.read_csv(
+        BASE_DIR / "orders.csv",
+        sep=";",
+        usecols=["order_id", "user_id", "order_dow", "order_hour_of_day"],
+        dtype={
+            "order_id": "int32",
+            "user_id": "int32",
+            "order_dow": "int8",
+            "order_hour_of_day": "int8",
+        },
+    )
+    df_products = pd.read_csv(
+        BASE_DIR / "products.csv",
+        sep=";",
+        usecols=["product_id", "product_name", "department_id"],
+        dtype={"product_id": "int32", "department_id": "int16"},
+    )
+    df_products["product_name"] = df_products["product_name"].astype("category")
+    df_departments = pd.read_csv(
+        BASE_DIR / "departments.csv",
+        sep=";",
+        usecols=["department_id", "department"],
+        dtype={"department_id": "int16"},
+    )
+    df_departments["department"] = df_departments["department"].astype("category")
+    return df_orders, df_products, df_departments
 
 
-df_orders, df_products, df_departments, df_order_products = load_data()
+@st.cache_data
+def load_order_products_aggregates(chunksize=1_000_000):
+    product_counts = None
+    order_counts = None
+    for chunk in pd.read_csv(
+        BASE_DIR / "order_products.csv",
+        sep=";",
+        usecols=["order_id", "product_id"],
+        dtype={"order_id": "int32", "product_id": "int32"},
+        chunksize=chunksize,
+    ):
+        chunk_product_counts = chunk["product_id"].value_counts()
+        if product_counts is None:
+            product_counts = chunk_product_counts
+        else:
+            product_counts = product_counts.add(chunk_product_counts, fill_value=0)
+
+        chunk_order_counts = chunk["order_id"].value_counts()
+        if order_counts is None:
+            order_counts = chunk_order_counts
+        else:
+            order_counts = order_counts.add(chunk_order_counts, fill_value=0)
+
+    product_counts = product_counts.astype("int64").rename_axis("product_id")
+    order_counts = order_counts.astype("int64").rename_axis("order_id")
+    return product_counts, order_counts
+
+
+df_orders, df_products, df_departments = load_data()
+product_counts, order_counts = load_order_products_aggregates()
 
 day_names = {
     0: "Domingo",
@@ -149,15 +199,14 @@ else:
     st.plotly_chart(fig, width="stretch")
 
 st.header("20 pedidos mais populares")
-merged_dfs = df_order_products.merge(
-    df_products[["product_id", "product_name"]], on="product_id"
-)
+product_counts_df = product_counts.rename("order_count").reset_index()
 most_popular_itens_general = (
-    merged_dfs.groupby(["product_id", "product_name"])["order_id"]
-    .count()
-    .sort_values(ascending=False)
+    product_counts_df.merge(
+        df_products[["product_id", "product_name"]], on="product_id"
+    )
+    .sort_values("order_count", ascending=False)
     .head(20)
-    .reset_index(name="order_count")
+    .reset_index(drop=True)
 )
 most_popular_itens_general["product_label"] = (
     most_popular_itens_general["product_name"]
@@ -179,17 +228,13 @@ fig.update_layout(xaxis_tickangle=90)
 st.plotly_chart(fig, width="stretch")
 
 st.header("Top 20 produtos por departamento")
-prod_dept = (
-    df_order_products.merge(
-        df_products[["product_id", "product_name", "department_id"]],
-        on="product_id",
-    )
-    .merge(df_departments[["department_id", "department"]], on="department_id")
-)
+prod_dept = product_counts_df.merge(
+    df_products[["product_id", "product_name", "department_id"]], on="product_id"
+).merge(df_departments[["department_id", "department"]], on="department_id")
 top_prod_dept = (
-    prod_dept.groupby(["department", "product_name"])
-    .size()
-    .reset_index(name="order_count")
+    prod_dept.groupby(["department", "product_name"])["order_count"]
+    .sum()
+    .reset_index()
 )
 top_prod_dept = (
     top_prod_dept.sort_values(["department", "order_count"], ascending=[True, False])
@@ -212,7 +257,7 @@ fig.update_layout(xaxis_tickangle=45)
 st.plotly_chart(fig, width="stretch")
 
 st.header("Distribuicao de itens por pedido")
-count_products_ordered = df_order_products.groupby("order_id")["product_id"].count()
+count_products_ordered = order_counts
 max_x = int(count_products_ordered.quantile(0.99))
 count_products_df = (
     count_products_ordered[count_products_ordered <= max_x]
