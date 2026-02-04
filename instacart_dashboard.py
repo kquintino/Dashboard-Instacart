@@ -198,80 +198,89 @@ else:
     )
     st.plotly_chart(fig, width="stretch")
 
-st.header("20 pedidos mais populares")
-product_counts_df = product_counts.rename("order_count").reset_index()
-most_popular_itens_general = (
-    product_counts_df.merge(
-        df_products[["product_id", "product_name"]], on="product_id"
+chart_options = [
+    "Distribuicao de itens por pedido",
+    "Top 20 produtos por departamento",
+    "20 pedidos mais populares",
+]
+selected_chart = st.selectbox("Selecione o grafico", chart_options)
+
+if selected_chart == "20 pedidos mais populares":
+    st.header("20 pedidos mais populares")
+    product_counts_df = product_counts.rename("order_count").reset_index()
+    most_popular_itens_general = (
+        product_counts_df.merge(
+            df_products[["product_id", "product_name"]], on="product_id"
+        )
+        .sort_values("order_count", ascending=False)
+        .head(20)
+        .reset_index(drop=True)
     )
-    .sort_values("order_count", ascending=False)
-    .head(20)
-    .reset_index(drop=True)
-)
-most_popular_itens_general["product_label"] = (
-    most_popular_itens_general["product_name"].astype(str)
-    + " ("
-    + most_popular_itens_general["product_id"].astype(str)
-    + ")"
-)
-fig = px.bar(
-    most_popular_itens_general,
-    x="product_label",
-    y="order_count",
-    labels={
-        "product_label": "Nome e ID dos produtos",
-        "order_count": "Quantidade de pedidos",
-    },
-    color_discrete_sequence=["gold"],
-)
-fig.update_layout(xaxis_tickangle=90)
-st.plotly_chart(fig, width="stretch")
-
-st.header("Top 20 produtos por departamento")
-prod_dept = product_counts_df.merge(
-    df_products[["product_id", "product_name", "department_id"]], on="product_id"
-).merge(df_departments[["department_id", "department"]], on="department_id")
-top_prod_dept = (
-    prod_dept.groupby(["department", "product_name"])["order_count"]
-    .sum()
-    .reset_index()
-)
-top_prod_dept = (
-    top_prod_dept.sort_values(["department", "order_count"], ascending=[True, False])
-    .groupby("department")
-    .head(20)
-)
-fig = px.scatter(
-    top_prod_dept,
-    x="department",
-    y="order_count",
-    size="order_count",
-    color="department",
-    hover_name="product_name",
-    labels={
-        "department": "Departamento",
-        "order_count": "Quantidade de pedidos",
-    },
-)
-fig.update_layout(xaxis_tickangle=45)
-st.plotly_chart(fig, width="stretch")
-
-st.header("Distribuicao de itens por pedido")
-count_products_ordered = order_counts
-max_x = int(count_products_ordered.quantile(0.99))
-count_products_df = (
-    count_products_ordered[count_products_ordered <= max_x]
-    .to_frame(name="items_per_order")
-    .reset_index(drop=True)
-)
-fig = px.histogram(
-    count_products_df,
-    x="items_per_order",
-    nbins=max_x,
-    title="Distribuicao de itens por pedido (ate 99%)",
-    labels={"items_per_order": "Itens por pedido", "count": "Numero de pedidos"},
-    color_discrete_sequence=["skyblue"],
-)
-fig.update_traces(marker_line_color="black", marker_line_width=1)
-fig.update_layout(xaxis_range=[0.5, max_x + 0.5])
-st.plotly_chart(fig, width="stretch")
+    most_popular_itens_general["product_label"] = (
+        most_popular_itens_general["product_name"].astype(str)
+        + " ("
+        + most_popular_itens_general["product_id"].astype(str)
+        + ")"
+    )
+    fig = px.bar(
+        most_popular_itens_general,
+        x="product_label",
+        y="order_count",
+        labels={
+            "product_label": "Nome e ID dos produtos",
+            "order_count": "Quantidade de pedidos",
+        },
+        color_discrete_sequence=["gold"],
+    )
+    fig.update_layout(xaxis_tickangle=90)
+    st.plotly_chart(fig, width="stretch")
+elif selected_chart == "Top 20 produtos por departamento":
+    st.header("Top 20 produtos por departamento")
+    product_counts_df = product_counts.rename("order_count").reset_index()
+    prod_dept = product_counts_df.merge(
+        df_products[["product_id", "product_name", "department_id"]], on="product_id"
+    ).merge(df_departments[["department_id", "department"]], on="department_id")
+    top_prod_dept = (
+        prod_dept.groupby(["department", "product_name"])["order_count"]
+        .sum()
+        .reset_index()
+    )
+    top_prod_dept = (
+        top_prod_dept.sort_values(["department", "order_count"], ascending=[True, False])
+        .groupby("department")
+        .head(20)
+    )
+    fig = px.scatter(
+        top_prod_dept,
+        x="department",
+        y="order_count",
+        size="order_count",
+        color="department",
+        hover_name="product_name",
+        labels={
+            "department": "Departamento",
+            "order_count": "Quantidade de pedidos",
+        },
+    )
+    fig.update_layout(xaxis_tickangle=45)
+    st.plotly_chart(fig, width="stretch")
+else:
+    st.header("Distribuicao de itens por pedido")
+    count_products_ordered = order_counts
+    max_x = int(count_products_ordered.quantile(0.99))
+    count_products_df = (
+        count_products_ordered[count_products_ordered <= max_x]
+        .to_frame(name="items_per_order")
+        .reset_index(drop=True)
+    )
+    fig = px.histogram(
+        count_products_df,
+        x="items_per_order",
+        nbins=max_x,
+        title="Distribuicao de itens por pedido (ate 99%)",
+        labels={"items_per_order": "Itens por pedido", "count": "Numero de pedidos"},
+        color_discrete_sequence=["skyblue"],
+    )
+    fig.update_traces(marker_line_color="black", marker_line_width=1)
+    fig.update_layout(xaxis_range=[0.5, max_x + 0.5])
+    st.plotly_chart(fig, width="stretch")
