@@ -209,7 +209,7 @@ most_popular_itens_general = (
     .reset_index(drop=True)
 )
 most_popular_itens_general["product_label"] = (
-    most_popular_itens_general["product_name"]
+    most_popular_itens_general["product_name"].astype(str)
     + " ("
     + most_popular_itens_general["product_id"].astype(str)
     + ")"
