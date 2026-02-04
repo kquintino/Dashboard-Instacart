@@ -22,3 +22,6 @@ Projeto pessoal usando Streamlit e Plotly para explorar dados públicos do Insta
 pip install -r requirements.txt
 streamlit run instacart_dashboard.py
 ```
+---
+## Link do app
+https://dashboard-instacart.onrender.com/
