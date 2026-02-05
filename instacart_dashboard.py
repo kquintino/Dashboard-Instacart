@@ -1,10 +1,8 @@
 from pathlib import Path
-
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
 import streamlit as st
-
 
 st.set_page_config(page_title="Instacart Dashboard", layout="wide")
 
@@ -83,7 +81,7 @@ day_names = {
 }
 
 hour_labels = [
-    f"{h:2d}am" if h < 12 else ("12pm" if h == 12 else f"{h-12:2d}pm")
+    ("12am" if h == 0 else f"{h}am" if h < 12 else "12pm" if h == 12 else f"{h-12}pm")
     for h in range(24)
 ]
 
@@ -114,6 +112,31 @@ fig = px.density_heatmap(
     category_orders={"day_name": [day_names[i] for i in range(7)]},
 )
 fig.update_layout(xaxis_tickangle=90, coloraxis_colorbar={"title": "Escala por volume"})
+st.plotly_chart(fig, width="stretch")
+
+st.header("Dispersao: volume de compras por dia e hora")
+scatter_df = (
+    df_orders.groupby(["order_dow", "order_hour_of_day"])["order_id"]
+    .count()
+    .reset_index(name="order_count")
+)
+scatter_df["day_name"] = scatter_df["order_dow"].map(day_names)
+fig = px.scatter(
+    scatter_df,
+    x="order_hour_of_day",
+    y="order_count",
+    size="order_count",
+    color="day_name",
+    labels={
+        "order_hour_of_day": "Hora do dia",
+        "day_name": "Dia da semana",
+        "order_count": "Quantidade de pedidos",
+    },
+    category_orders={"day_name": [day_names[i] for i in range(7)]},
+)
+fig.update_layout(
+    xaxis={"tickmode": "array", "tickvals": list(range(24)), "ticktext": hour_labels}
+)
 st.plotly_chart(fig, width="stretch")
 
 st.header("Pedidos por hora (todos os dias da semana)")
@@ -246,7 +269,9 @@ elif selected_chart == "Top 20 produtos por departamento":
         .reset_index()
     )
     top_prod_dept = (
-        top_prod_dept.sort_values(["department", "order_count"], ascending=[True, False])
+        top_prod_dept.sort_values(
+            ["department", "order_count"], ascending=[True, False]
+        )
         .groupby("department")
         .head(20)
     )
